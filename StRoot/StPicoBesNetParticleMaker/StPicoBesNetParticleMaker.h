@@ -33,11 +33,14 @@
 class TTree;
 class TFile;
 class TChain;
+class TProfile;
 
 class StPicoDst;
 class StPicoDstMaker;
 class StPicoEvent;
 class StPicoTrack;
+
+class StRefMultCorr;
 
 class StPicoBesNetParticleCuts;
 class StPicoBesNetParticleHists;
@@ -49,7 +52,10 @@ class StPicoBesNetParticleMaker : public StMaker
 
     virtual ~StPicoBesNetParticleMaker();
     
-    void setBesCuts(StPicoBESNetParticleCuts* cuts);
+    void setBesCuts(StPicoBesNetParticleCuts* cuts) { mBesCuts = cuts; }
+    void setEnergyIdx(Int_t i)                      { mEnergyIdx = i; }
+    void setAnalysisIdx(Int_t i)                    { mAnalysisIdx = i; }
+    void setQaMode(Int_t i)                         { mQaMode = i; }
 
     Int_t Init();
     Int_t Make();
@@ -86,14 +92,14 @@ class StPicoBesNetParticleMaker : public StMaker
     // -- initialize net particle arrays
     Int_t initNetParticle();
 
-    // --runs the actual analysis
+    // -- Runs the actual analysis
     Int_t makeNetParticle();
     
+    // -- Helper method for factorial moments calculation
+    Double_t NN(Double_t num, Int_t order);
 
 
     // -- private members ------------------------
-
-
     TString         mOutputFileBaseName; // base name for output files
                                          //   for histList -> <mOutputFileBaseName>.GetName().root
 
@@ -103,7 +109,8 @@ class StPicoBesNetParticleMaker : public StMaker
 
     StPicoEvent*    mPicoEvent;          // ptr to picoDstEvent
 
-    Int_t           mEventCounter;       // n Processed events in chain
+    StRefMultCorr*  mRefMultCorr;        // ptr to refMultCorr
+
 
     // -----------------------------------------------------------------------
 
@@ -132,15 +139,22 @@ class StPicoBesNetParticleMaker : public StMaker
                                                 // 1 - positive charge -> positive eta
                                                 // 2 - positive charge -> negative eta
 
-    // =======================================================================
-    //xxx    THnSparseD           *fHnTrackUnCorr;               //  THnSparseD : uncorrected probe particles
-    //xxx    THnSparseD           *fHnEvent;                     //  THnSparseD : event
-    // =======================================================================
 
+    // -----------------------------------------------------------------------
 
+    Int_t           mNRefMultX;          // refMuly<X> of event according to analysis
+                                         //  <X> - 2 for Charge
+                                         //  <X> - 3 for Proton
+                                         //  <X> - 4 for Kaon
+
+    Int_t           mNRefMultXCorr;      // vz corrected refMuly<X> of event according to analysis
+                                         //  <X> - 2 for Charge
+                                         //  <X> - 3 for Proton
+                                         //  <X> - 4 for Kaon
+
+    Int_t           mCentralityBin;      // Centrality Bin
 
     ClassDef(StPicoBesNetParticleMaker, 0)
 };
 
-inline void StPicoBesNetParticleMaker::setBesCuts(StPicoBesNetParticleCuts* cuts) { mBesCuts = cuts; }
 #endif

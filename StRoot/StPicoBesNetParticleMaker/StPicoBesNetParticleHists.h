@@ -1,5 +1,5 @@
-#ifndef StBesHists__h
-#define StBesHists__h
+#ifndef StPicoBesNetParticleHists__h
+#define StPicoBesNetParticleHists__h
 
 /* **************************************************
  *  A class to create and save production QA
@@ -19,10 +19,11 @@
 
 #include "TNamed.h"
 #include "TList.h"
-#include "StPicoPrescales/StPicoPrescales.h"
 
 class TH1F;
 class TH2F;
+class THnSparseD;
+
 class TFile;
 class TString;
 class StPicoPrescales;
@@ -37,11 +38,11 @@ class StPicoBesNetParticleHists: public TNamed
 
   virtual ~StPicoBesNetParticleHists();
 
-  void init(TList *outList, unsigned int mode);
+  void init(TList *outList, const Char_t* title, Int_t analysisIdx, Int_t nCentralityBins);
 
-  // -- >>>> What is that
-  void fillEventHists(StPicoEvent const &);
-  void fillGoodEventHists(StPicoEvent const &);
+  // -- Fill THnSparse
+  void FillHnEvent(Double_t *aEvent);
+  void FillHnTrack(Double_t *aTrack);
 
   // -- Event Statistics
   void InitializeEventStats();
@@ -49,7 +50,7 @@ class StPicoBesNetParticleHists: public TNamed
 
   // -- Histogram sets for particle and anti-particle
   void AddHistSetCent(const Char_t *name, const Char_t *title);
-  void FillHistSetCent(const Char_t *name, Int_t idx, Int_t cent);
+  void FillHistSetCent(const Char_t *name, Int_t* np, Int_t cent);
 
   // -- Multiplicity statistics of accepted events (is that true?)
   void InitializeMultiplicityStats();
@@ -78,6 +79,9 @@ class StPicoBesNetParticleHists: public TNamed
    * ---------------------------------------------------------------------------------
    */
  
+  enum particleCharge {kPOS, kNEG, kNET, kParticleCharge};
+  enum analysisType {kNetCharge, kNetProton, kNetKaon, kMaxAnalysisType};
+
   // -- Energy / Analysis / RefMult names
   static const Int_t   kNEnergies;
   static const Char_t* kNnergies[];
@@ -92,18 +96,18 @@ class StPicoBesNetParticleHists: public TNamed
   static const Char_t* kNameRefMultShort[];
   
   static const Int_t   kNParticles; 
-  static const Char_t* kParticleName[];
-  static const Char_t* ParticleTitle[];
-
+  static const Char_t* kParticleName[kMaxAnalysisType][2];
+  static const Char_t* kParticleTitle[kMaxAnalysisType][2];
 
   // -- Histogram sets : nSets / names / titles
+
   static const Int_t   kNQASets;
   static const Char_t* kQANames[];
   static const Char_t* kQATitles[];
   
   static const Int_t   kNQARunSets;
   static const Char_t* kQARunNames[];
-  static const Char_t* kQRunTitles[]; 
+  static const Char_t* kQARunTitles[]; 
   
   static const Int_t   kNMultSets;
   static const Char_t* kMultNames[];
@@ -120,22 +124,26 @@ class StPicoBesNetParticleHists: public TNamed
   static const Double_t kMinHnTrack[];
   static const Double_t kMaxHnTrack[];
  
+  static const Int_t    kNCentralityBins;
+  static const Char_t*  kCentralityTitles[];
+  static const Char_t*  kCentralityMaxNames[];
+
+
  private:
-  
+  Int_t            mAnalysisIdx;
+  Int_t            mNCentralityBins;
+
   TList*           mEventList;
+  TList*           mAnaList;
   TList*           mQAList;
   TList*           mQARunList;
 
   THnSparseD*      mHnEvent;               //  THnSparseD : event
   THnSparseD*      mHnTrack;               //  THnSparseD : probe particles
+  Int_t            mNRuns;
 
-
-
-  // general event hists
-  StPicoPrescales* mPrescales;
- 
-  int mNRuns;
- 
+  // StPicoPrescales* mPrescales;
+  
   ClassDef(StPicoBesNetParticleHists, 1)
 };
 #endif

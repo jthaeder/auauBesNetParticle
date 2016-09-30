@@ -3,6 +3,7 @@
 #include "TTree.h"
 #include "TFile.h"
 #include "TChain.h"
+#include "TProfile.h"
 
 #include "StarClassLibrary/StThreeVectorF.hh"
 #include "StarClassLibrary/StLorentzVectorF.hh"
@@ -11,7 +12,8 @@
 #include "StPicoDstMaker/StPicoEvent.h"
 #include "StPicoDstMaker/StPicoTrack.h"
 #include "StPicoDstMaker/StPicoBTofPidTraits.h"
-#include "StPicoPrescales/StPicoPrescales.h"
+
+#include "StRefMultCorr/StRefMultCorr.h"
 
 #include "StPicoBesNetParticleCuts.h"
 #include "StPicoBesNetParticleHists.h"
@@ -28,17 +30,18 @@ StPicoBesNetParticleMaker::StPicoBesNetParticleMaker(char const* name, StPicoDst
   mOutList(NULL),
 
   mOutputFileBaseName(outputBaseFileName), 
-  mOutputFileList(NULL) 
+  mOutputFileList(NULL),
 
   mPicoDstMaker(picoMaker), mPicoEvent(NULL), 
-  mEventCounter(0), 
 
-  mOrder(8), mNNp(3), mNp(NULL), mFact(NULL)
+  mOrder(8), mNNp(3), mNp(NULL), mFact(NULL),
 
-  mEneryIdx(-1), mAnalysisIdx(-1), 
+  mEnergyIdx(-1), mAnalysisIdx(-1), 
   mQaMode(0), 
 
-  mUseModeChargeSeparation(0) {
+  mUseModeChargeSeparation(0),
+
+  mNRefMultX(-1), mNRefMultXCorr(-1), mCentralityBin(-1) {
   // -- constructor
 }
 
@@ -62,32 +65,32 @@ StPicoBesNetParticleMaker::~StPicoBesNetParticleMaker() {
   if (mNp)
     delete[] mNp;
   mNp = NULL;
-  
-  
 
-  for (int idxCent = 0; idxCent <= 9; idxCent++) {
-    if (mFact[i][j][k][h])
-      delete mFact[i][j][k][h];
-    mFact[i][j][k][h] = NULL;
-    
-    for (int h = 0; h <= mOrder; h++) { 
-      if (mFact[i][j][k])
-	delete[] mFact[i][j][k];
-      mFact[i][j][k] = NULL;
-      
+  for (int i = 0; i <= mOrder; i++) { 
+    for (int j = 0; j <= mOrder; j++) { 
       for (int k = 0; k <= mOrder; k++) { 
-	if (mFact[i][j])
-	  delete[] mFact[i][j];
-	mFact[i][j] = NULL;
-      
-	for (int j = 0; j <= mOrder; j++) {
-	  if (mFact[i])
-	    delete[] mFact[i];
-	  mFact[i] = NULL;
-	}
-      }
-    }
-  }
+	for (int h = 0; h <= mOrder; h++) {   
+	  for (int idxCent = 0; idxCent <= 9; idxCent++) {
+	    if (mFact[i][j][k][h][idxCent])
+	      delete mFact[i][j][k][h][idxCent];
+	    mFact[i][j][k][h][idxCent] = NULL;
+	  }
+	  if (mFact[i][j][k][h])
+	    delete mFact[i][j][k][h];
+	  mFact[i][j][k][h] = NULL;
+	} // for (int h = 0; h <= mOrder; h++) {   
+	if (mFact[i][j][k])
+	  delete[] mFact[i][j][k];
+	mFact[i][j][k] = NULL;
+      } // for (int k = 0; k <= mOrder; k++) { 
+      if (mFact[i][j])
+	delete[] mFact[i][j];
+      mFact[i][j] = NULL;
+    } // for (int j = 0; j <= mOrder; j++) { 
+    if (mFact[i])
+      delete[] mFact[i];
+    mFact[i] = NULL;
+  } // for (int i = 0; i <= mOrder; i++) { 
 
   if (mFact)
     delete[] mFact;
@@ -99,11 +102,6 @@ StPicoBesNetParticleMaker::~StPicoBesNetParticleMaker() {
 Int_t StPicoBesNetParticleMaker::Init() {
   // -- Inhertited from StMaker 
   //    Initializes everything
-
-  // -- Check for cut class
-  if (!mBesCuts)
-    mBesCuts = new StPicoBesNetParticleCuts;
-  mBesCuts->init();
 
   // -- Check if analysis was set up properly in macro
   if (mEnergyIdx < 0) {
@@ -129,27 +127,27 @@ Int_t StPicoBesNetParticleMaker::Init() {
   mOutList->SetName(GetName());
   mOutList->SetOwner(true);
 
-#if 0 ... MOVE SOMEWHERE ELSE
-  // -- get general tile for histograms
-  TString sTitle("");
-  sTitle += (!analysisIdx) ? Form("%.2f<#eta<%.2f", etaAbsRange[analysisIdx][0], etaAbsRange[analysisIdx][1]) : 
-    Form("%.2f<y<%.2f", yAbsRange[analysisIdx][0], yAbsRange[analysisIdx][1]); 		   
-  sTitle += Form(" #it{p}_{T} [%.1f,%.1f]", ptRange[analysisIdx][0], ptRange[analysisIdx][1]);
-#endif
+  // -- Get RefMult Corr
+  mRefMultCorr = new StRefMultCorr(StPicoBesNetParticleHists::kNameRefMultShort[mAnalysisIdx]);
+  
+  // -- Check for cut class
+  if (!mBesCuts)
+    mBesCuts = new StPicoBesNetParticleCuts;
 
-  // -- Get StRefMultCorr
-  mRefMultCorr = new StRefMultCorr(StBesHists::kNameRefMultShort[mAnalysisIdx]);
+  // -- Initialize cuts class
+  mBesCuts->init(mRefMultCorr);
 
   // -- Initialize histogram class
-  mBesHists = new StBesHists(Form("besHists_%s",GetName()));
-  mBesHists->init(mOutList, sTitle.Data());     // -- no title yet
+  mBesHists = new StPicoBesNetParticleHists(Form("besHists_%s",GetName()));
+  mBesHists->init(mOutList, mBesCuts->getCutsTitle(),
+		  mAnalysisIdx, mBesCuts->getNCentralityBinsMax()); 
 
   // -- Initialize net particle variables
   initNetParticle();
 
   TH1::AddDirectory(oldStatus);
 
-  cout << StBesHists::kName[analysisIdx] << ": .... " << sTitle << " useChargeSeparation "<<  useModeChargeSeparation << endl;
+  cout << StPicoBesNetParticleHists::kName[mAnalysisIdx] << ": .... " << mBesCuts->getCutsTitle() << endl;
 
   // -- reset event to be in a defined state
   resetEvent();
@@ -158,14 +156,13 @@ Int_t StPicoBesNetParticleMaker::Init() {
 }
 
 // _________________________________________________________
-Int_t initNetParticle() {
+Int_t StPicoBesNetParticleMaker::initNetParticle() {
   // -- init analysis members
 
   // -- Counting array
   mNp = new Int_t*[mNNp];
   for (Int_t ii = 0 ; ii < mNNp; ++ii)
     mNp[ii] = new Int_t[2];
-
 
   Int_t nCent = 10;    // -- ## nCent to be added
 
@@ -192,7 +189,7 @@ Int_t initNetParticle() {
   mOutList->Add(new TList);
  
   TList *fijkhList = static_cast<TList*>(mOutList->Last());
-  fijkhList->SetName(Form("f%sFijkh", StBesHists::kName[mAnalysisIdx]));
+  fijkhList->SetName(Form("f%sFijkh", StPicoBesNetParticleHists::kName[mAnalysisIdx]));
   fijkhList->SetOwner(kTRUE);
 
   for (int idxCent = 0; idxCent <= 9; idxCent++) 
@@ -207,7 +204,7 @@ Int_t initNetParticle() {
 	      mFact[i][j][k][h][idxCent] = static_cast<TProfile*>(fijkhList->Last());
 	    }
   
-   return;
+   return 0;
 }
 
 // _________________________________________________________
@@ -253,177 +250,131 @@ Int_t StPicoBesNetParticleMaker::Make() {
     LOG_WARN << " StPicoBesNetParticleMaker - No PicoDst! Skip! " << endm;
     return kStWarn;
   }
-
-    
+  
   Int_t iReturn = kStOK;
 
+  // -- Setup Event and check if event should be processed
   if (setupEvent()) {
-    //    UInt_t nTracks = mPicoDst->numberOfTracks();
 
-    // -- call method of daughter class
-    iReturn = MakeNetParticle();
-
-    // -- fill basic event histograms - for good events
-    ///     mBesHists->fillGoodEventHists(*mPicoEvent);
+    // -- call track loop for analysis
+    iReturn = makeNetParticle();
 
   } // if (setupEvent()) {
     
-  // -- fill basic event histograms - for all events
-  /// mBEesists->fillEventHists(*mPicoEvent);
   
   return (kStOK && iReturn);
 }
 
-Int_t StPicoBesNetParticleMaker::MakeBES() {
-  
-  UInt_t nTracks = mPicoDst->numberOfTracks();   // XX member?
-    // ------------------------------------------------------------------
-    // -- Track loop - track multiplicity
-    // ------------------------------------------------------------------
-    for (Int_t idxTrack = 0; idxTrack < nTracks; idxTrack++)  {
-      StPicoTrack* trk = mPicoDst->track(iTrack);      
+// _________________________________________________________
+Int_t StPicoBesNetParticleMaker::makeNetParticle() {
+  // -- Track loop for the analysis
+  //    Fill particle hists and factorial moments
 
+  Int_t nTracks = mPicoDst->numberOfTracks(); 
 
-      /*
-      Float_t pxcm    = pico->Tracks_mPMomentum_mX1[idxTrack];
-      Float_t pycm    = pico->Tracks_mPMomentum_mX2[idxTrack];
-      Float_t pzcm    = pico->Tracks_mPMomentum_mX3[idxTrack];
-      if (pxcm == 0 && pycm == 0 && pzcm == 0) 
-	continue;
-      
-      Float_t pt      = TMath::Sqrt(pxcm*pxcm + pycm*pycm);
-      Float_t pcm     = TMath::Sqrt(pt*pt + pzcm*pzcm);
-      Float_t ecm     = TMath::Sqrt(pcm*pcm + masses[analysisIdx]*masses[analysisIdx]);
-      
-      Float_t eta     = 0.5 * TMath::Log((pcm+pzcm)/(pcm-pzcm));
-      Float_t DCA     = pico->Tracks_mGDca[idxTrack]/1000.;
-
-      Float_t y       = 0.5 * TMath::Log((ecm+pzcm)/(ecm-pzcm));
-
-      Int_t nHitsDedx = pico->Tracks_mNHitsDedx[idxTrack];
-      Int_t nHitsFit  = pico->Tracks_mNHitsFit[idxTrack];
-      Int_t nFitPoss  = pico->Tracks_mNHitsMax[idxTrack];
-      
-      Float_t ratio   = (1+fabs(nHitsFit))/(1+nFitPoss);
-      
-      Float_t sign    = (nHitsFit > 0) ? +1 : -1;
-      
-      Float_t nSigma[3];
-      nSigma[0]       = pico->Tracks_mNSigmaProton[idxTrack]/100.;
-      nSigma[1]       = pico->Tracks_mNSigmaProton[idxTrack]/100.;
-      nSigma[2]       = pico->Tracks_mNSigmaKaon[idxTrack]/100.;
-           
-      Float_t beta    = pico->Tracks_mBTofBeta[idxTrack]/20000.;
-      beta = (beta <= 0) ? -999 : beta;
-            
-      Float_t mSquare = (beta == -999. || beta <= 1.e-5) ? -999. : pow(pcm,2)*(pow(1/beta,2)-1);
-      */
-
-      // -- is in RefMult flag
-      Bool_t isInRefMult = (TMath::Abs(eta) > etaAbsRangeRefMult[analysisIdx][0] 
-			    && TMath::Abs(eta) <= etaAbsRangeRefMult[analysisIdx][1]  
-			    && TMath::Abs(nHitsFit) > nHitsFitRefMult[analysisIdx]  
-			    && DCA < dcaMaxRefMult[analysisIdx]) ? kTRUE : kFALSE;
-      
-      // -- is track accepted flag - kinematics
-      Bool_t isTrackAcceptedKin = (pt > ptRange[analysisIdx][0] && pt < ptRange[analysisIdx][1]) ? kTRUE : kFALSE;
-
-      if (isTrackAcceptedKin && analysisIdx == 0) 
-	isTrackAcceptedKin = (eta > etaAbsRange[analysisIdx][0] && eta < etaAbsRange[analysisIdx][1]) ? kTRUE : kFALSE;
-      else if (isTrackAcceptedKin && analysisIdx > 0) 
-	isTrackAcceptedKin = (y > yAbsRange[analysisIdx][0] && y < yAbsRange[analysisIdx][1]) ? kTRUE : kFALSE;
-
-      // -- is track accepted flag - clusters/dca
-      Bool_t isTrackAcceptedCut = (TMath::Abs(nHitsFit) > nHitsFitMin[analysisIdx] 
-				   && DCA < dcaMax[analysisIdx] 
-				   && nHitsDedx > nHitsDedxMin[analysisIdx] 
-				   && ratio > ratioNHitsFitNFitPossMin[analysisIdx]) ? kTRUE : kFALSE;
-      
-      // -- is track accepted flag - PID
-      Bool_t isTrackAcceptedPid = kTRUE;
-      
-      if (analysisIdx > 0) {
-	// -- PID for net-proton . net-kaon
-	Bool_t isTrackAcceptedPidTPC = (TMath::Abs(nSigma[analysisIdx]) < nSigmaMax[analysisIdx]) ? kTRUE : kFALSE;
-	Bool_t isTrackAcceptedPidTOF = kTRUE;
-
-	if (pt > ptMidPoint[analysisIdx])
-	  isTrackAcceptedPidTOF = (mSquare > mSquareRange[analysisIdx][0] 
-				   && mSquare < mSquareRange[analysisIdx][1]) ? kTRUE : kFALSE;
-	
-	isTrackAcceptedPid = (isTrackAcceptedPidTPC && isTrackAcceptedPidTOF);
-      }
-      else {
-	// -- is track Spallation proton/anti-proton
-	Bool_t isTrackSpallationProton = (pt > ptRangeSpallation[0] && pt < ptRangeSpallation[1] 
-					  && TMath::Abs(nSigma[0]) < nSigmaProtonMaxSpallation)  ? kTRUE : kFALSE;
-	
-	isTrackAcceptedPid = isTrackSpallationProton;
-      }
-   
-      // -->> is track accepted  - clusters/dca && kinematics && PID
-      Bool_t isTrackAccepted = (isTrackAcceptedKin && isTrackAcceptedCut && isTrackAcceptedPid);
-
+  // ------------------------------------------------------------------
+  // -- Track loop - track multiplicity
+  // ------------------------------------------------------------------
+  for (Int_t idxTrack = 0; idxTrack < nTracks; idxTrack++)  {
+    StPicoTrack* trk = mPicoDst->track(idxTrack);      
+    
+    Bool_t isTrackAccepted = kTRUE;
+    
+    Double_t aTrack[13];
+    if (!trk || ! mBesCuts->isGoodBesTrack(trk, aTrack)) 
+      isTrackAccepted = kFALSE;
  
-      // -- fill ThnSparse - tracks
-      // ------------------------------------------------------------------
-      Double_t aTrack[13] = {Double_t(centrality), pt, eta, sign, DCA,
-			     Double_t(nHitsDedx), Double_t(TMath::Abs(nHitsFit)), Double_t(nFitPoss), ratio, 
-			     Double_t(isInRefMult), Double_t(isTrackAccepted), nSigma[analysisIdx], pcm};
+    // -- fill ThnSparse - tracks
+    // ------------------------------------------------------------------
+    aTrack[0] = Double_t(mCentralityBin);
  
-#if TRACK_THN      
-      fHnTrackUnCorr->Fill(aTrack);
-#endif
+    // -- Fill Track THn
+    mBesHists->FillHnTrack(aTrack);
 
-      FillTrackHists(aTrack, 0);
-      FillRunByRunTrackHists(aTrack, isBadRun, 0, runIdx);
+    // -- Fill Track QA Hists
+    mBesHists->FillTrackQAHists(aTrack, 0);
+    //    mBesHists->FillRunByRunTrackHists(aTrack, isBadRun, 0, runIdx);
 
-      // -- reject track
-      // ------------------------------------------------------------------
-      if (!isTrackAccepted)
-	continue;
-      
-      FillTrackHists(aTrack, 1);
-      FillRunByRunTrackHists(aTrack, isBadRun, 1, runIdx);
+    // -- reject track
+    // ------------------------------------------------------------------
+    if (!isTrackAccepted)
+      continue;
+    
+    mBesHists->FillTrackQAHists(aTrack, 1);
+    //    mBesHists->FillRunByRunTrackHists(aTrack, isBadRun, 1, runIdx);
 
-      // ------------------------------------------------------------------
-      // -- Add up for event multiplicity
-      // ------------------------------------------------------------------
-      //  idxPart = 0 -> anti particle
-      //  idxPart = 1 -> particle
-      Int_t idxPart    = (sign < 0) ? 0 : 1;
-      Int_t idxEtaSign = (eta  < 0) ? 0 : 1;
-
+    // ------------------------------------------------------------------
+    // -- Add up for event multiplicity
+    // ------------------------------------------------------------------
+    //  idxPart = 0 -> anti particle
+    //  idxPart = 1 -> particle
+    Int_t idxPart    = (aTrack[3] < 0) ? 0 : 1;
+    Int_t idxEtaSign = (aTrack[2]  < 0) ? 0 : 1;
+    
 #if USE_RANDOM_EFF      
-      // -- discard a random amount of tracks
-      if (gRandom->Rndm() > randomEff[idxPart][centrality])
-	continue;
+    // -- discard a random amount of tracks
+    if (gRandom->Rndm() > randomEff[idxPart][centrality])
+      continue;
 #endif
+    
+    // -- Apply Charge separation 
+    //    -> default: off  => 0  
+    //    -> positive particles from postive eta / negative particles from negative eta => 1
+    //    -> positive particles from negative eta / negative particles from postive eta => 2
+    
+    Int_t count = 0;
+    if (mUseModeChargeSeparation == 0) 
+      ++count;
+    else if ( (mUseModeChargeSeparation == 1) && (idxPart == idxEtaSign) ) 
+      ++count;
+    else if ( (mUseModeChargeSeparation == 2) && (idxPart != idxEtaSign) ) 
+      ++count;
+    
+    // -- in full pt Range
+    mNp[0][idxPart] += count;
+    
+    // -- divide in 2 parts
+    if (aTrack[1] < mBesCuts->getPtMidPoint())
+      mNp[1][idxPart] += count;
+    else
+      mNp[2][idxPart] += count;
+  } 
 
-      // -- Apply Charge separation 
-      //    -> default: off  => 0  
-      //    -> positive particles from postive eta / negative particles from negative eta => 1
-      //    -> positive particles from negative eta / negative particles from postive eta => 2
 
-      Int_t count = 0;
-      if (useModeChargeSeparation == 0) 
-	++count;
-      else if ( (useModeChargeSeparation == 1) && (idxPart == idxEtaSign) ) 
-	++count;
-      else if ( (useModeChargeSeparation == 2) && (idxPart != idxEtaSign) ) 
-	++count;
+  // -- Fill histograms
+  // ------------------------------------------------------------------
+  mBesHists->FillHistSetCent("Dist",       mNp[0], mCentralityBin);
+  mBesHists->FillHistSetCent("Dist_lower", mNp[1], mCentralityBin);
+  mBesHists->FillHistSetCent("Dist_upper", mNp[2], mCentralityBin);
+  
+  // ------------------------------------------------------------------
+  
+  // Double_t aEventRun[] = { Double_t(mPicoEvent->refMult()), 
+  // 			   Double_t(mNRefMultX),
+  // 			   Double_t(mNp[0][1] - mNp[0][0]), 
+  // 			   Double_t(mNp[0][0]), Double_t (mNp[0][1])};
+  // FIX ME LATER  FillRunByRunEventHists(aEventRun, isBadRun, runIdx); 
+  
+  // -- Filling of factorial moments
 
-      // -- in full pt Range
-      fNp[0][idxPart] += count;
-      
-      // -- divide in 2 parts
-      if (pt < ptMidPoint[analysisIdx])
-	fNp[1][idxPart] += count;
-      else
-	fNp[2][idxPart] += count;
-    } // for (Int_t idxTrack = 0; idxTrack < nTracks; idxTrack++)  {
+    for (int i = 0; i <= mOrder; i++) 
+      for (int j = 0; j <= mOrder; j++) 
+	for (int k = 0; k <= mOrder; k++) 
+	  for (int h = 0; h <= mOrder; h++) 
+	    if ((i+j+k+h) <= mOrder) {
+	      mFact[i][j][k][h][mCentralityBin+1]->Fill(mNRefMultXCorr, NN(mNp[1][1],i) * NN(mNp[2][1],j) * NN(mNp[1][0],k) * NN(mNp[2][0],h));
+	      mFact[i][j][k][h][0]->Fill(               mNRefMultXCorr, NN(mNp[1][1],i) * NN(mNp[2][1],j) * NN(mNp[1][0],k) * NN(mNp[2][0],h));
+	    }
+
+    // ------------------------------------------------------------------
+
+    return kStOK;
 }
 
+//________________________________________________________________________
+Double_t NN(Double_t num, Int_t order) {
+  return (order == 0) ? 1 : NN(num,order-1)*(num-order+1);
+}
 
 // _________________________________________________________
 bool StPicoBesNetParticleMaker::setupEvent() {
@@ -437,56 +388,123 @@ bool StPicoBesNetParticleMaker::setupEvent() {
   mBField = mPicoEvent->bField();
   mPrimVtx = mPicoEvent->primaryVertex();
   
-  // -- arry with one entry for every cut
+  // -- Get refmultX number of event
+  if (mAnalysisIdx == 0)
+    mNRefMultX = mPicoEvent->refMult2();
+  else if (mAnalysisIdx == 1)
+    mNRefMultX = mPicoEvent->refMult3();
+  else if (mAnalysisIdx == 2)
+    mNRefMultX = mPicoEvent->refMult4();
+  else
+    mNRefMultX = 0;
+
+  // -- Setup refMultCorr
+  mRefMultCorr->init(mPicoEvent->runId());
+  mRefMultCorr->initEvent(mNRefMultX, mPrimVtx.z());
+  
+  // -- Correct refmult vz dependent 
+  mNRefMultXCorr = mRefMultCorr->getRefMultCorr();
+
+  // -- get CentralityBin
+  mCentralityBin = 8 - mRefMultCorr->getCentralityBin9();
+
+  // ----------------------------------------------------
+  // -- EVENT CUTS
+  // ----------------------------------------------------
+
+  // -- Array with one entry for every cut
   //    0 - event passes cut
   //    1 - event doesn't pass cut
-  int aEventStat[mBesCuts->eventStatMax()];
+  Int_t aEventStat[StPicoBesNetParticleCuts::kNEventStat];
   
-  bool bResult = mBesCuts->isGoodEvent(mPicoDst, aEventStat);
+  // -- Check for good event
+  bool isGoodEvent = mBesCuts->isGoodBesEvent(mPicoDst, aEventStat);
 
-  // -- fill event statistics histograms
-  fillEventStats(aEventStat);
+  // ----------------------------------------------------
+  // -- Fill event QA histograms
+  // ----------------------------------------------------
 
-  return bResult;
+  //  needed of the run wise event cuts 
+  //Int_t isBadRun = (aEventStat[1]) ? 1 : 0;
+
+  // -- don't cut on bad runs for qaMode
+  if (mQaMode)
+    aEventStat[1] = 0;
+
+  // -- Fill event statistics histograms
+  mBesHists->FillEventStats(aEventStat);
+
+
+  Bool_t isRejectedWithoutTOF = (aEventStat[0] || aEventStat[1] || aEventStat[2] || aEventStat[3] || 
+				 aEventStat[4] || aEventStat[5] || aEventStat[6]) ? kTRUE : kFALSE;
+  
+
+  // -- Create arrays  aEvent - aMult
+  // ----------------------------------------------------
+  Double_t shiftedVtx = TMath::Sqrt((mPrimVtx.x()-mBesCuts->getVxShift())*
+				    (mPrimVtx.x()-mBesCuts->getVxShift()) + 
+				    (mPrimVtx.y()-mBesCuts->getVyShift())*
+				    (mPrimVtx.y()-mBesCuts->getVyShift()));
+  
+
+  Double_t aEvent[11] = {Double_t(mCentralityBin), 
+			 mPrimVtx.x(), mPrimVtx.y(), mPrimVtx.z(),
+			 shiftedVtx, 
+			 Double_t(mNRefMultX),
+			 Double_t(mNRefMultXCorr),
+			 
+			 Double_t(mPicoDst->numberOfTracks()),
+
+			 Double_t(!isGoodEvent),
+			 mPicoEvent->vzVpd(),
+			 mPrimVtx.z()-mPicoEvent->vzVpd()};
+      
+  Double_t aMult[7]  = {Double_t(mCentralityBin),
+			Double_t(mPicoEvent->refMult()), 
+			Double_t(mNRefMultX),
+			Double_t(mNRefMultXCorr),
+			
+			Double_t(mPicoEvent->numberOfGlobalTracks()),
+			Double_t(0),    // FIXME nPrimaryTracks),
+			Double_t(mPicoEvent->nBTOFMatch())};
+  
+  
+  // -- Fill Event THn
+  mBesHists->FillHnEvent(aEvent);
+    
+  // -- Fill Event QA Hists
+  mBesHists->FillEventQAHists(aEvent, 0);
+  
+  // -- Fill multiplicty stats - before event cuts
+  mBesHists->FillMultiplicityStats(aMult, 0);
+  
+  // -- Reject Event - but not TOF cuts
+  // ------------------------------------------------------------------
+  if (isRejectedWithoutTOF) {
+    mBesHists->FillMultiplicityStats(aMult, 1);
+    return isGoodEvent;
+  }
+  
+  // -- Fill multiplicty stats - after event cuts (but not TOF cuts)
+  mBesHists->FillMultiplicityStats(aMult, 2);
+  
+  // -- Rejected Event
+  // ------------------------------------------------------------------
+  if (!isGoodEvent) {
+    mBesHists->FillMultiplicityStats(aMult, 3);
+    return isGoodEvent; 
+  }
+  
+  // -- Fill multiplicty stats
+  mBesHists->FillMultiplicityStats(aMult, 4);
+  
+  // -- Fill eventHists
+  mBesHists->FillEventQAHists(aEvent, 1);
+  
+  // ------------------------------------------------------------------
+  
+  return isGoodEvent;
 }
 
-// _________________________________________________________
-void StPicoBesNetParticleMaker::initializeEventStats() {
-  // -- Initialize event statistics histograms
-  
-  const char *aEventCutNames[] = {"all", "good run", "trigger", "#it{v}_{z}", "#it{v}_{z}-#it{v}^{VPD}_{z}", "accepted"};
 
-  mOutList->Add(new TH1F("hEventStat0","Event cut statistics 0;Event Cuts;Events", mBesCuts->eventStatMax(), -0.5, mBesCuts->eventStatMax()-0.5));
-  TH1F *hEventStat0 = static_cast<TH1F*>(mOutList->Last());
-
-  mOutList->Add(new TH1F("hEventStat1","Event cut statistics 1;Event Cuts;Events", mBesCuts->eventStatMax(), -0.5, mBesCuts->eventStatMax()-0.5));
-  TH1F *hEventStat1 = static_cast<TH1F*>(mOutList->Last());
-
-  for (unsigned int ii = 0; ii < mBesCuts->eventStatMax(); ii++) {
-    hEventStat0->GetXaxis()->SetBinLabel(ii+1, aEventCutNames[ii]);
-    hEventStat1->GetXaxis()->SetBinLabel(ii+1, aEventCutNames[ii]);
-  }
-
-  //  hEventStat0->GetXaxis()->SetBinLabel(fHEventStatMax, Form("Centrality [0-%s]%%", aCentralityMaxNames[9-1]));
-  //  hEventStat1->GetXaxis()->SetBinLabel(fHEventStatMax, Form("Centrality [0-%s]%%", aCentralityMaxNames[9-1]));
-}
-
-//________________________________________________________________________
-void StPicoBesNetParticleMaker::fillEventStats(int *aEventStat) {
-  // -- Fill event statistics 
-
-  TH1F *hEventStat0 = static_cast<TH1F*>(mOutList->FindObject("hEventStat0"));
-  TH1F *hEventStat1 = static_cast<TH1F*>(mOutList->FindObject("hEventStat1"));
-
-  for (unsigned int idx = 0; idx < mBesCuts->eventStatMax() ; ++idx) {
-    if (!aEventStat[idx])
-      hEventStat0->Fill(idx);
-  }
-  
-  for (unsigned int idx = 0; idx < mBesCuts->eventStatMax(); ++idx) {
-    if (aEventStat[idx])
-      break;
-    hEventStat1->Fill(idx);
-  }
-}
 

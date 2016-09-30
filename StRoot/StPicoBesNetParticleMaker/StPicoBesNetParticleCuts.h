@@ -1,5 +1,5 @@
-#ifndef StBESCUTS_H
-#define StBESCUTS_H
+#ifndef StPicoBesNetParticleCuts__h
+#define StPicoBesNetParticleCuts__h
 
 /* **************************************************
  *  Cut class for BES analysis
@@ -16,51 +16,118 @@
  * **************************************************
  */
 
+class StRefMultCorr;
+
 #include "StPicoCutsBase/StPicoCutsBase.h"
 
-class StBESCuts : public StPicoCutsBase
+class StPicoBesNetParticleCuts : public StPicoCutsBase
 {
  public:
   
-  StBESCuts();
-  StBESCuts(const Char_t *name);
-  ~StBESCuts();
+  StPicoBesNetParticleCuts();
+  StPicoBesNetParticleCuts(const Char_t *name);
+  ~StPicoBesNetParticleCuts();
   
   // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --   
 
-  virtual void init() { initBase(); }
+  virtual void init() { initBase(); }   // not needed
+  
+  void init(StRefMultCorr* refmultCorr);
+ 
+  Bool_t isGoodBesEvent(StPicoDst const * const picoDst, Int_t *aEventCuts); 
+  Bool_t isGoodBesTrack(StPicoTrack const * const trk,   Double_t *aTrack); 
 
   // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --   
+  // -- SETTER for CUTS - EVENT CUTS
+  // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
 
-  //
-  bool isClosePair(StHFPair const & pair) const;
+  void SetVxShift(Float_t f) {mVxShift = f;}
+  void SetVyShift(Float_t f) {mVyShift = f;}
+  void SetVrMax(Float_t f) {mVrMax = f;}
+  
+  void SetNCentralityBinsMax(Float_t f) {mNCentralityBinsMax = f;}
+  
+  void SetNTOFMatchMin(Int_t i) {mNTOFMatchMin = i;} 
+
+  void SetCutRefMultVsNTOFMatch(Float_t f1, Float_t f2) {
+    mUseCutRefMultVsNTOFMatch = kTRUE;
+    mCutRefMultVsNTOFMatchA = f1;
+    mCutRefMultVsNTOFMatchB = f2;
+  }
 
   // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --   
-  // -- SETTER for CUTS
+  // -- SETTER for CUTS - TRACK CUTS
   // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
   
-  //  void setCutSecondaryPair(float dcaDaughtersMax, float decayLengthMin, float decayLengthMax, 
-  //float cosThetaMin, float massMin, float massMax); 
+
+
+
+  
 
   // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --   
   // -- GETTER for single CUTS
   // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
 
-  //  const float&    cutSecondaryPairDcaDaughtersMax()       const;
+  const Char_t* getCutsTitle();
+
+  const Int_t   getNCentralityBinsMax() { return mNCentralityBinsMax; }
+
+  const Float_t getPtMidPoint()         { return mPtMidPoint; }
+
+
+  const Float_t getVxShift()   { return mVxShift; }
+  const Float_t getVyShift()   { return mVyShift; }
+
+
+  static const Int_t    kNEventStat;
+  static const Char_t* kEventStatNames[];
 
  private:
   
-  StBESCuts(StBESCuts const &);       
-  StBESCuts& operator=(StBESCuts const &); 
+  enum analysisType {kNetCharge, kNetProton, kNetKaon, kMaxAnalysisType};
+
+  StPicoBesNetParticleCuts(StPicoBesNetParticleCuts const &);       
+  StPicoBesNetParticleCuts& operator=(StPicoBesNetParticleCuts const &); 
 
   // ------------------------------------------
-  // -- Pair cuts for secondary pair
+  // -- Members
   // ------------------------------------------
-  //  float mSecondaryPairDcaDaughtersMax;
+  
+  StRefMultCorr* mRefmultCorr;       // Ptr to refMultCorr
 
-  ClassDef(StBESCuts,1)
+  Int_t          mEventStatMax;      // max number of cuts  
+  Int_t          mAnalysisIdx;       // analysisIdx
+
+  // ------------------------------------------
+  // -- BES event cuts
+  // ------------------------------------------
+
+  Float_t mVxShift;                  // Shift of Vx 
+  Float_t mVyShift;                  // Shift of Vy 
+  Float_t mVrMax;                    // Max Vr
+
+  Int_t   mNCentralityBinsMax;       // Max CentralityBins from cuts
+
+  Int_t   mNTOFMatchMin;             // Min N for TOFmatch hits - pile up removal
+
+  Bool_t  mUseCutRefMultVsNTOFMatch; // Enable linear cut
+  Float_t mCutRefMultVsNTOFMatchA;   // Parameter for linear cut ;  nTOFMatch vs nRefMult
+  Float_t mCutRefMultVsNTOFMatchB;   // mCutRefMultVsNTOFMatchA * refMult() - mCutRefMultVsNTOFMatchB > nBTOFMatch
+
+  // ------------------------------------------
+  // -- BES track cuts
+  // ------------------------------------------
+
+  
+  Float_t mPtMidPoint;                // midPoint between two pid areas: TPC pid and TPC+TOF pid
+
+  Float_t mEtaRange[kPicoPIDMax][2];  // eta Range
+
+  Float_t mYRange[kPicoPIDMax][2];    // rapidity range
+ 
+  Int_t   mNHitsDedxMin;              // min number of hits used for dEdx
+
+  ClassDef(StPicoBesNetParticleCuts,0)
+
 };
-
-//inline const float&    StBESCuts::cutSecondaryPairDcaDaughtersMax()       const { return mSecondaryPairDcaDaughtersMax; }
-
 #endif
