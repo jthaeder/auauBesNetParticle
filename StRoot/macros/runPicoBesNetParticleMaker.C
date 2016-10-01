@@ -36,6 +36,7 @@
 #include "StPicoDstMaker/StPicoDstMaker.h"
 
 #include "StPicoBesNetParticleMaker/StPicoBesNetParticleCuts.h"
+#include "StPicoBesNetParticleMaker/StPicoBesNetParticleHists.h"
 #include "StPicoBesNetParticleMaker/StPicoBesNetParticleMaker.h"
 
 #include "macros/loadSharedBesLibraries.C"
@@ -54,15 +55,15 @@ StChain *chain;
 
 void runPicoBesNetParticleMaker(const Char_t *inputFile="test.list", 
 				const Char_t *outputFile="outputBaseName", 
-				const unsigned int energyIdx = 2,    /* 14.5 GeV */
-				const unsigned int analysisIdx = 0,  /* NetCharge */
-				const unsigned int qaMode = 1){      /* QA mode on */
+				const unsigned int energyIdx=2,    /* 14.5 GeV */
+				const unsigned int analysisIdx=0,  /* NetCharge */
+				const unsigned int qaMode=1){      /* QA mode on */
   // -- Check STAR Library. Please set SL_version to the original star library used in the production 
   //    from http://www.star.bnl.gov/devcgi/dbProdOptionRetrv.pl
   string SL_version = "SL16d";
   string env_SL = getenv ("STAR");
   if (env_SL.find(SL_version)==string::npos) {
-      cout<<"Environment Star Library does not match the requested library in runPicoHFLambdaCMaker.C. Exiting..."<<endl;
+      cout<<"Environment Star Library does not match the requested library in runPicoNBesNetParticleMaker.C. Exiting..."<<endl;
       exit(1);
   }
   
@@ -89,7 +90,7 @@ void runPicoBesNetParticleMaker(const Char_t *inputFile="test.list",
   // --Create classes
   StPicoDstMaker* picoDstMaker = new StPicoDstMaker(0, sInputFile, "picoDstMaker");
 
-  StPicoBesNetParticleMaker* picoBesNetParticleMaker = StPicoBesNetParticleMaker("picoBesNetParticleMaker",picoDstMaker, outputFile);
+  StPicoBesNetParticleMaker* picoBesNetParticleMaker = new StPicoBesNetParticleMaker("picoBesNetParticleMaker", picoDstMaker, outputFile);
 
   // ---------------------------------------------------
   // -- Set analysis type and energy
@@ -186,9 +187,9 @@ void runPicoBesNetParticleMaker(const Char_t *inputFile="test.list",
     besCuts->setCutPtRange(0.2, 2., StPicoCutsBase::kPion);
     besCuts->setCutPtMidPoint(1.);
     
-    besCuts->setCutEtaRange(-0.5, 0.5., StPicoCutsBase::kPion);
+    besCuts->setCutEtaRange(-0.5, 0.5, StPicoCutsBase::kPion);
 
-    // -- spallation protona
+    // -- spallation proton
     besCuts->setCutPtRange(0.2, 0.4, StPicoCutsBase::kProton);
     besCuts->setCutTPCNSigma(2, StPicoCutsBase::kProton);
   }
@@ -197,12 +198,12 @@ void runPicoBesNetParticleMaker(const Char_t *inputFile="test.list",
   // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
   else if (analysisIdx == 1) {
     besCuts->setCutPtRange(0.4, 2., StPicoCutsBase::kProton);
-    besCuts->setCutPtMidPoint(0.8.);
+    besCuts->setCutPtMidPoint(0.8);
     
-    besCuts->setCutYRange(-0.5, 0.5., StPicoCutsBase::kProton);
+    besCuts->setCutYRange(-0.5, 0.5, StPicoCutsBase::kProton);
 
     besCuts->setCutTPCNSigma(3, StPicoCutsBase::kProton);
-    besCuts->setCutTOFmSquaredRange(0.6, 1.2, StPicoCutsBase::kProtom);
+    besCuts->setCutTOFmSquaredRange(0.6, 1.2, StPicoCutsBase::kProton);
   }
   // -- Net-Kaon
   // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
@@ -210,7 +211,7 @@ void runPicoBesNetParticleMaker(const Char_t *inputFile="test.list",
     besCuts->setCutPtRange(0.2, 1.6, StPicoCutsBase::kKaon);
     besCuts->setCutPtMidPoint(0.4);
     
-    besCuts->setCutYRange(-0.5, 0.5., StPicoCutsBase::kKaon);
+    besCuts->setCutYRange(-0.5, 0.5, StPicoCutsBase::kKaon);
 
     besCuts->setCutTPCNSigma(2, StPicoCutsBase::kKaon);
     besCuts->setCutTOFmSquaredRange(0.15, 0.4, StPicoCutsBase::kKaon);
@@ -249,9 +250,5 @@ void runPicoBesNetParticleMaker(const Char_t *inputFile="test.list",
   cout << "****************************************** " << endl;
   
   delete chain;
-
-  // -- clean up if in read mode
-  if (makerMode == StPicoHFMaker::kRead)
-    gSystem->Exec(Form("rm -f %s", sInputFile.Data()));
 }
 

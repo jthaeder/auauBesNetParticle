@@ -59,10 +59,15 @@ class StPicoBesNetParticleCuts : public StPicoCutsBase
   // -- SETTER for CUTS - TRACK CUTS
   // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
   
+  void setCutNHitsDedxMin(Int_t i) { mNHitsDedxMin = i; } 
+    
+  void setCutPtMidPoint(Float_t f) { mPtMidPoint = f;}
 
+  void setCutEtaRange(Float_t f1, Float_t f2, int pidFlag) {mEtaRange[pidFlag][0] = f1; mEtaRange[pidFlag][1] = f2;}
+  void setCutYRange(Float_t f1, Float_t f2, int pidFlag) {mYRange[pidFlag][0] = f1; mYRange[pidFlag][1] = f2;}
+		    
+  void setCutTOFmSquaredRange(Float_t f1, Float_t f2, int pidFlag) {;}
 
-
-  
 
   // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --   
   // -- GETTER for single CUTS
@@ -70,13 +75,13 @@ class StPicoBesNetParticleCuts : public StPicoCutsBase
 
   const Char_t* getCutsTitle();
 
-  const Int_t   getNCentralityBinsMax() { return mNCentralityBinsMax; }
+  Int_t   getNCentralityBinsMax() { return mNCentralityBinsMax; }
 
-  const Float_t getPtMidPoint()         { return mPtMidPoint; }
+  Float_t getPtMidPoint()         { return mPtMidPoint; }
 
 
-  const Float_t getVxShift()   { return mVxShift; }
-  const Float_t getVyShift()   { return mVyShift; }
+  Float_t getVxShift()   { return mVxShift; }
+  Float_t getVyShift()   { return mVyShift; }
 
 
   static const Int_t    kNEventStat;
